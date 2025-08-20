@@ -4,13 +4,12 @@ import com.example.gestionutilisateur.Entities.Groupe;
 import com.example.gestionutilisateur.KeycloakService;
 import com.example.gestionutilisateur.Repository.GroupeRepository;
 import com.example.gestionutilisateur.Repository.UtilisateurRepository;
+import org.keycloak.representations.idm.GroupRepresentation;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @RestController
@@ -105,57 +104,68 @@ public class GroupeRestController {
         try {
             List<Map<String, Object>> keycloakGroups = keycloakService.getAllGroupsFromKeycloak();
 
+            AtomicInteger counter = new AtomicInteger(1);
+
             List<Map<String, Object>> result = keycloakGroups.stream().map(g -> {
                 Map<String, Object> map = new HashMap<>();
                 String keycloakId = (String) g.get("id");
                 Map<String, List<String>> attributes = (Map<String, List<String>>) g.get("attributes");
 
-                // 🔹 Utiliser code et label depuis Keycloak si définis, sinon fallback sur name
-                String codeMetier = (attributes != null && attributes.containsKey("code") && !attributes.get("code").isEmpty())
-                        ? attributes.get("code").get(0)
-                        : (String) g.get("code");
+                // 🔹 Générer code = eg01, eg02 ... si absent
+                String code;
+                if (attributes != null && attributes.containsKey("code") && !attributes.get("code").isEmpty()) {
+                    code = attributes.get("code").get(0);
+                } else {
+                    code = String.format("eg%02d", counter.getAndIncrement());
+                }
 
-                String label = (attributes != null && attributes.containsKey("label") && !attributes.get("label").isEmpty())
-                        ? attributes.get("label").get(0)
-                        : (String) g.get("name");
+                // 🔹 label = nom lisible (ou name fallback)
+                String label;
+                if (attributes != null && attributes.containsKey("nom") && !attributes.get("nom").isEmpty()) {
+                    label = attributes.get("nom").get(0);
+                } else if (attributes != null && attributes.containsKey("label") && !attributes.get("label").isEmpty()) {
+                    label = attributes.get("label").get(0);
+                } else {
+                    label = (String) g.get("name");
+                }
 
-                map.put("id", codeMetier);
+                map.put("id", keycloakId);
                 map.put("keycloakId", keycloakId);
-                map.put("code", codeMetier);
+                map.put("code", code);
                 map.put("label", label);
 
-                // 🔹 Utilisateurs (inchangé)
-                Groupe groupeEntity = groupeRepository.findByCode(codeMetier).orElse(null);
-                List<Map<String, Object>> users;
-                if (groupeEntity != null) {
-                    users = utilisateurRepository.findByGroupe(groupeEntity).stream()
-                            .map(u -> {
-                                Map<String, Object> uMap = new HashMap<>();
-                                uMap.put("id", u.getId());
-                                uMap.put("username", u.getUsername());
-                                uMap.put("email", u.getEmail());
-                                uMap.put("firstName", u.getFirstName());
-                                uMap.put("lastName", u.getLastName());
-                                return uMap;
-                            }).collect(Collectors.toList());
-                } else {
-                    users = new ArrayList<>();
+                // 🔹 utilisateurs du groupe
+                List<Map<String, Object>> users = keycloakService.getUsersOfGroup(keycloakId);
+                if (users == null || users.isEmpty()) {
+                    users = List.of(Map.of("username", "Aucun utilisateur n'est affecté"));
                 }
-
-                if (users.isEmpty()) {
-                    Map<String, Object> emptyUser = new HashMap<>();
-                    emptyUser.put("username", "Aucun utilisateur n'est affecté");
-                    users.add(emptyUser);
-                }
-
                 map.put("utilisateurs", users);
+
                 return map;
             }).collect(Collectors.toList());
 
             return ResponseEntity.ok(result);
+
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(500).body(null);
+        }
+    }
+
+    // 🔹 Récupérer un groupe précis par son KeycloakId (UUID)
+    @GetMapping("/{groupId}")
+    public ResponseEntity<Map<String, Object>> getGroupeById(@PathVariable String groupId) {
+        try {
+            Map<String, Object> group = keycloakService.getGroupById(groupId);
+            if (group == null) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok(group);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                    "error", "Erreur lors de la récupération du groupe",
+                    "details", e.getMessage()
+            ));
         }
     }
 

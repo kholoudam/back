@@ -502,4 +502,47 @@ public class KeycloakService {
         return map;
     }
 
+    public List<Map<String, Object>> getUsersOfGroup(String groupId) {
+        try {
+            List<UserRepresentation> members = keycloak.realm(targetRealm)
+                    .groups().group(groupId).members();
+
+            if (members.isEmpty()) {
+                Map<String, Object> emptyUser = new HashMap<>();
+                emptyUser.put("username", "Aucun utilisateur n'est affecté");
+                return Collections.singletonList(emptyUser);
+            }
+
+            return members.stream().map(u -> {
+                Map<String, Object> uMap = new HashMap<>();
+                uMap.put("username", u.getUsername());
+                uMap.put("firstName", u.getFirstName());
+                uMap.put("lastName", u.getLastName());
+                uMap.put("email", u.getEmail());
+                return uMap;
+            }).collect(Collectors.toList());
+
+        } catch (Exception e) {
+            Map<String, Object> emptyUser = new HashMap<>();
+            emptyUser.put("username", "Aucun utilisateur n'est affecté");
+            return Collections.singletonList(emptyUser);
+        }
+    }
+
+    public Map<String, Object> getGroupById(String groupId) {
+        GroupRepresentation group = keycloak.realm(targetRealm).groups().group(groupId).toRepresentation();
+        if (group == null) return null;
+
+        // Récupérer les utilisateurs du groupe
+        List<Map<String, Object>> utilisateurs = getUsersOfGroup(group.getId());
+
+        Map<String, Object> dto = new HashMap<>();
+        dto.put("id", group.getName());   // ou group.getId() si tu veux l’UUID
+        dto.put("keycloakId", group.getId());
+        dto.put("code", group.getName());
+        dto.put("label", group.getName());
+        dto.put("utilisateurs", utilisateurs);
+
+        return dto;
+    }
 }

@@ -11,5 +11,4 @@ public interface GroupeRepository extends JpaRepository<Groupe, Long> {
     // 🔹 Nouvelle méthode pour rechercher un groupe par son code
     Optional<Groupe> findByCode(String code);
 
-    String code(String code);
 }
