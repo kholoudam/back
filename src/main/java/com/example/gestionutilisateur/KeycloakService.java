@@ -328,12 +328,12 @@ public class KeycloakService {
      * Affecte un utilisateur à un groupe de type "region"
      * et le retire automatiquement de ses autres groupes "region" existants.
      */
-    public void affecterUtilisateurAuGroupeRegion(String keycloakId, String groupCode) {
+    public void affecterUtilisateurAuGroupeRegion(String keycloakId, String regionLabel) {
         if (keycloakId == null || keycloakId.isEmpty()) {
             throw new IllegalArgumentException("Le keycloakId de l'utilisateur ne peut pas être null ou vide");
         }
-        if (groupCode == null || groupCode.isEmpty()) {
-            throw new IllegalArgumentException("Le code du groupe ne peut pas être null ou vide");
+        if (regionLabel == null || regionLabel.isEmpty()) {
+            throw new IllegalArgumentException("Le label de la région ne peut pas être null ou vide");
         }
 
         try {
@@ -342,7 +342,6 @@ public class KeycloakService {
             if (userResource == null) {
                 throw new RuntimeException("Utilisateur Keycloak introuvable pour keycloakId : " + keycloakId);
             }
-
             System.out.println("[INFO] Utilisateur trouvé dans Keycloak : " + keycloakId);
 
             // 🔹 Supprimer l'utilisateur des anciens groupes de type "region"
@@ -355,14 +354,12 @@ public class KeycloakService {
                 }
             }
 
-            // 🔹 Chercher le groupe cible dans Keycloak par code
+            // 🔹 Chercher le groupe cible dans Keycloak par label (nom lisible)
             List<GroupRepresentation> allGroups = keycloak.realm(targetRealm).groups().groups();
-            Optional<GroupRepresentation> targetGroupOpt = allGroups.stream()
-                    .filter(g -> groupCode.equals(getAttributeValue(g, "code", "")))
-                    .findFirst();
+            Optional<GroupRepresentation> targetGroupOpt = findGroupByLabel(allGroups, regionLabel);
 
             if (targetGroupOpt.isEmpty()) {
-                throw new RuntimeException("Groupe Keycloak introuvable pour le code : " + groupCode);
+                throw new RuntimeException("Groupe Keycloak introuvable pour le label : " + regionLabel);
             }
 
             GroupRepresentation targetGroup = targetGroupOpt.get();
@@ -374,9 +371,22 @@ public class KeycloakService {
 
         } catch (Exception e) {
             System.err.println("[ERROR] Erreur lors de l'affectation de l'utilisateur au groupe region : " + e.getMessage());
-            e.printStackTrace(); // Affiche la stack trace complète pour diagnostiquer
+            e.printStackTrace();
             throw new RuntimeException("Erreur lors de l'affectation de l'utilisateur au groupe region : " + e.getMessage(), e);
         }
+    }
+
+    private Optional<GroupRepresentation> findGroupByLabel(List<GroupRepresentation> groups, String label) {
+        if (groups == null) return Optional.empty();
+        for (GroupRepresentation g : groups) {
+            if (label.equalsIgnoreCase(g.getName())) {
+                return Optional.of(g);
+            }
+            // Recherche récursive dans les sous-groupes
+            Optional<GroupRepresentation> found = findGroupByLabel(g.getSubGroups(), label);
+            if (found.isPresent()) return found;
+        }
+        return Optional.empty();
     }
 
     /* ==================== GROUPES ==================== */

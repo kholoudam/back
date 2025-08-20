@@ -123,14 +123,15 @@ public class UtilisateurRestController {
     @PostMapping("/affecter-region")
     public ResponseEntity<?> affecterUtilisateurRegion(
             @RequestParam String utilisateurId,
-            @RequestParam String regionCode
+            @RequestParam String regionLabel
     ) {
         try {
-            keycloakService.affecterUtilisateurAuGroupeRegion(utilisateurId, regionCode);
+            keycloakService.affecterUtilisateurAuGroupeRegion(utilisateurId, regionLabel);
             return ResponseEntity.ok(Map.of("message", "Utilisateur affecté à la région"));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
         }
     }
+
 }
