@@ -29,6 +29,9 @@ public class Utilisateur {
     private String lastName;
     private String phoneNumber;
     private String address;
+    @ManyToOne
+    @JoinColumn(name = "region_id")
+    private Region region;
 
     // 🔹 Relation vers le groupe
     @ManyToOne(fetch = FetchType.LAZY)

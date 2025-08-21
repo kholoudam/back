@@ -164,28 +164,54 @@ public class KeycloakService {
     }
 
     public void updateUserInKeycloak(Utilisateur utilisateur) {
-        if (utilisateur.getKeycloakId() == null) {
+        if (utilisateur.getKeycloakId() == null || utilisateur.getKeycloakId().isBlank()) {
             throw new RuntimeException("L'utilisateur n'a pas d'ID Keycloak");
         }
 
         try {
+            // Récupération de l'utilisateur dans Keycloak
             var userResource = keycloak.realm(targetRealm).users().get(utilisateur.getKeycloakId());
             UserRepresentation kcUser = userResource.toRepresentation();
+            if (kcUser == null) {
+                throw new RuntimeException("Utilisateur introuvable dans Keycloak avec l'ID : " + utilisateur.getKeycloakId());
+            }
 
+            // Champs standards
             kcUser.setUsername(utilisateur.getUsername());
-            kcUser.setFirstName(utilisateur.getFirstName());
-            kcUser.setLastName(utilisateur.getLastName());
-            kcUser.setEmail(utilisateur.getEmail());
+            if (utilisateur.getEmail() != null && !utilisateur.getEmail().isBlank()) kcUser.setEmail(utilisateur.getEmail());
+            if (utilisateur.getFirstName() != null) kcUser.setFirstName(utilisateur.getFirstName());
+            if (utilisateur.getLastName() != null) kcUser.setLastName(utilisateur.getLastName());
+            kcUser.setEnabled(true);
+            kcUser.setEmailVerified(true);
 
-            Map<String, List<String>> attributes = kcUser.getAttributes() != null ?
-                    new HashMap<>(kcUser.getAttributes()) : new HashMap<>();
-            attributes.put("phoneNumber", List.of(utilisateur.getPhoneNumber() != null ? utilisateur.getPhoneNumber() : ""));
-            attributes.put("address", List.of(utilisateur.getAddress() != null ? utilisateur.getAddress() : ""));
+            // Gestion attributs Keycloak
+            Map<String, List<String>> attributes = kcUser.getAttributes() != null
+                    ? new HashMap<>(kcUser.getAttributes())
+                    : new HashMap<>();
+
+            if (utilisateur.getPhoneNumber() != null && !utilisateur.getPhoneNumber().isBlank()) {
+                attributes.put("phoneNumber", List.of(utilisateur.getPhoneNumber().trim()));
+            }
+
+            if (utilisateur.getAddress() != null && !utilisateur.getAddress().isBlank()) {
+                attributes.put("address", List.of(utilisateur.getAddress().trim()));
+            }
+
+            // Gestion région/groupes
+            if (utilisateur.getRegion() != null && utilisateur.getRegion().getLabel() != null) {
+                attributes.put("groups", List.of(utilisateur.getRegion().getLabel()));
+            }
+
+            // Garde le mot de passe existant
+            if (attributes.containsKey("password")) {
+                attributes.put("password", attributes.get("password"));
+            }
+
             kcUser.setAttributes(attributes);
-
             userResource.update(kcUser);
 
-            if (utilisateur.getGroupe() != null && utilisateur.getGroupe().getLabel() != null) {
+            // Gestion du groupe Keycloak séparé
+            if (utilisateur.getRegion() != null && utilisateur.getRegion().getLabel() != null) {
                 List<GroupRepresentation> currentGroups = userResource.groups();
                 for (GroupRepresentation g : currentGroups) {
                     userResource.leaveGroup(g.getId());
@@ -193,7 +219,7 @@ public class KeycloakService {
 
                 List<GroupRepresentation> allGroups = keycloak.realm(targetRealm).groups().groups();
                 Optional<GroupRepresentation> targetGroup = allGroups.stream()
-                        .filter(g -> g.getName().equals(utilisateur.getGroupe().getLabel()))
+                        .filter(g -> g.getName().equals(utilisateur.getRegion().getLabel()))
                         .findFirst();
 
                 targetGroup.ifPresent(group -> userResource.joinGroup(group.getId()));

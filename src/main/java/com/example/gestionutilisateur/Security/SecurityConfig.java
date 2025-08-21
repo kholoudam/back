@@ -36,12 +36,29 @@ public class SecurityConfig {
                 .headers(headers -> headers.frameOptions().disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()       // <-- autoriser preflight
+                        // Autoriser preflight Angular
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                        // Autoriser console H2
                         .requestMatchers("/h2-console/**").permitAll()
+
+                        // Autoriser Swagger et OpenAPI
+                        .requestMatchers(
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/swagger-resources/**",
+                                "/webjars/**"
+                        ).permitAll()
+
+                        // Tes API protégées par Keycloak
                         .requestMatchers("/api/groupes/**").authenticated()
                         .requestMatchers("/api/utilisateurs/**").authenticated()
+
+                        // Tout le reste protégé
                         .anyRequest().authenticated()
                 )
+                // Authentification via JWT (Keycloak)
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(
                                 (Converter<Jwt, ? extends AbstractAuthenticationToken>) jwtAuthConverter
@@ -54,9 +71,9 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:4200"));  // Angular URL
+        configuration.setAllowedOrigins(List.of("http://localhost:4200"));  // frontend Angular
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*"));                      // inclut Authorization
+        configuration.setAllowedHeaders(List.of("*"));  // inclut Authorization
         configuration.setExposedHeaders(List.of("Authorization", "Content-Type"));
         configuration.setAllowCredentials(true);
 
@@ -65,16 +82,3 @@ public class SecurityConfig {
         return source;
     }
 }
-// @Bean
-// public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-//     http
-//         .csrf(csrf -> csrf.disable())
-//         .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-//         .authorizeHttpRequests(auth -> auth
-//             .requestMatchers("/api/**").permitAll()
-//             .anyRequest().authenticated()
-//         )
-//         .cors(cors -> cors.configurationSource(corsConfigurationSource()));  // configuration CORS via lambda
-
-//     return http.build();
-// }

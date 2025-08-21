@@ -16,7 +16,7 @@ public class Region {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String nom;
+    private String label;
 
     // Relation OneToMany vers Province
     @OneToMany(mappedBy = "parentRegion", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
